@@ -15,14 +15,14 @@ import scala.collection.mutable
 object App {
 
   def main(args: Array[String]): Unit = {
-    val master = "local[8]"
+    val master = "local[7]"
     val appName = "Work Concept Generator"
     val sparkHome = "/usr/local/spark"
     val esNodes = "localhost"
     val esPort = "9200"
     implicit val esIndex = "testsb_160407"
     val esOriginType = "bibliographicResource"
-    val esTargetType = "work3"
+    val esTargetType = "work5"
     def esIndexType(t: String)(implicit i: String) = i + "/" + t
 
     val sparkConfig = new SparkConf()
@@ -49,25 +49,18 @@ object App {
       agg
     }
 
-    new SparkContext(sparkConfig)
+    val test = new SparkContext(sparkConfig)
       .esRDD(esIndexType(esOriginType), "?q=_exists_:work")
-      .flatMap(x => {
+      .flatMap(x =>
         x._2.get("work").get match {
           case a: Seq[AnyRef] => a.map(Tuple2(_, Map("bf:hasInstance" -> x._1, "dct:contributor" -> x._2.getOrElse("dct:contributor", ""), "dct:title" -> x._2.getOrElse("dct:title", ""))))
           case s => Seq(Tuple2(s, Map("bf:hasInstance" -> x._1, "dct:contributor" -> x._2.getOrElse("dct:contributor", ""), "dct:title" -> x._2.getOrElse("dct:title", ""))))
         }
-      }
       )
-      .groupBy(_._1)
-      .map(_._2.toBuffer)
-      .map(e => {
-        if (e.length > 1) {
-          val v = e.foldLeft(mutable.Map("bf:hasInstance" -> mutable.Buffer[String](), "dct:contributor" -> mutable.Buffer[String](), "dct:title" -> mutable.Buffer[String]()))((x, y) => valueCollector(x, y._2))
-          Tuple2(Map(ID -> e.head._1), v)
-        } else {
-          Tuple2(Map(ID -> e.head._1), e.head._2)
-        }
-      })
+      .groupByKey()
+      .map(e =>
+        Tuple2(Map(ID -> e._1), e._2.foldLeft(mutable.Map("bf:hasInstance" -> mutable.Buffer[String](), "dct:contributor" -> mutable.Buffer[String](), "dct:title" -> mutable.Buffer[String]()))((x, y) => valueCollector(x, y)))
+      )
       .saveToEsWithMeta(esIndexType(esTargetType))
   }
 }
