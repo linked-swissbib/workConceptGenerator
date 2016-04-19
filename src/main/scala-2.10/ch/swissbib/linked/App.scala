@@ -49,7 +49,7 @@ object App {
       agg
     }
 
-    val test = new SparkContext(sparkConfig)
+    new SparkContext(sparkConfig)
       .esRDD(esIndexType(esOriginType), "?q=_exists_:work")
       .flatMap(x =>
         x._2.get("work").get match {
