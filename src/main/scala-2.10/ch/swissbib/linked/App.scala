@@ -20,9 +20,9 @@ object App {
     val sparkHome = "/usr/local/spark"
     val esNodes = "localhost"
     val esPort = "9200"
-    implicit val esIndex = "testsb_160407"
+    implicit val esIndex = "testsb_160421"
     val esOriginType = "bibliographicResource"
-    val esTargetType = "work5"
+    val esTargetType = "work2"
     def esIndexType(t: String)(implicit i: String) = i + "/" + t
 
     val sparkConfig = new SparkConf()
@@ -51,15 +51,19 @@ object App {
 
     new SparkContext(sparkConfig)
       .esRDD(esIndexType(esOriginType), "?q=_exists_:work")
-      .flatMap(x =>
-        x._2.get("work").get match {
-          case a: Seq[AnyRef] => a.map(Tuple2(_, Map("bf:hasInstance" -> x._1, "dct:contributor" -> x._2.getOrElse("dct:contributor", ""), "dct:title" -> x._2.getOrElse("dct:title", ""))))
-          case s => Seq(Tuple2(s, Map("bf:hasInstance" -> x._1, "dct:contributor" -> x._2.getOrElse("dct:contributor", ""), "dct:title" -> x._2.getOrElse("dct:title", ""))))
-        }
-      )
+      .map(x => Tuple2(x._2.get("work"),
+        Map("bf:hasInstance" -> ("http://data.swissbib.ch/bibliographicResource/" + x._1),
+          "dct:contributor" -> x._2.getOrElse("dct:contributor", ""),
+          "dct:title" -> x._2.getOrElse("dct:title", ""),
+          "@type" -> "http://bibframe.org/vocab/Work",
+          "@context" -> "http://data.swissbib.ch/work/context.jsonld",
+          "@id" -> ("http://data.swissbib.ch/work/" + x._2.get("work").get.toString)
+        )
+      ))
       .groupByKey()
       .map(e =>
-        Tuple2(Map(ID -> e._1), e._2.foldLeft(mutable.Map("bf:hasInstance" -> mutable.Buffer[String](), "dct:contributor" -> mutable.Buffer[String](), "dct:title" -> mutable.Buffer[String]()))((x, y) => valueCollector(x, y)))
+        Tuple2(Map(ID -> e._1), e._2.foldLeft(mutable.Map("bf:hasInstance" -> mutable.Buffer[String](), "dct:contributor" -> mutable.Buffer[String](), "dct:title" -> mutable.Buffer[String](), "@context" -> mutable.Buffer[String](), "@type" -> mutable.Buffer[String](), "@id" -> mutable.Buffer[String]()))((x, y) => valueCollector(x, y)))
+
       )
       .saveToEsWithMeta(esIndexType(esTargetType))
   }
