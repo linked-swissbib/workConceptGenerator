@@ -49,21 +49,27 @@ object App {
       agg
     }
 
+    val array2String: Tuple2[String, AnyRef] = (key: String, value: mutable.Buffer[String]) => {
+      Tuple2(key, if (value.length == 1) value.head else value)
+    }
+
     new SparkContext(sparkConfig)
       .esRDD(esIndexType(esOriginType), "?q=_exists_:work")
       .map(x => Tuple2(x._2.get("work"),
         Map("bf:hasInstance" -> ("http://data.swissbib.ch/bibliographicResource/" + x._1),
           "dct:contributor" -> x._2.getOrElse("dct:contributor", ""),
-          "dct:title" -> x._2.getOrElse("dct:title", ""),
-          "@type" -> "http://bibframe.org/vocab/Work",
-          "@context" -> "http://data.swissbib.ch/work/context.jsonld",
-          "@id" -> ("http://data.swissbib.ch/work/" + x._2.get("work").get.toString)
+          "dct:title" -> x._2.getOrElse("dct:title", "")
         )
       ))
       .groupByKey()
       .map(e =>
-        Tuple2(Map(ID -> e._1), e._2.foldLeft(mutable.Map("bf:hasInstance" -> mutable.Buffer[String](), "dct:contributor" -> mutable.Buffer[String](), "dct:title" -> mutable.Buffer[String](), "@context" -> mutable.Buffer[String](), "@type" -> mutable.Buffer[String](), "@id" -> mutable.Buffer[String]()))((x, y) => valueCollector(x, y)))
+        Tuple2(Map(ID -> e._1), e._2.foldLeft(mutable.Map("bf:hasInstance" -> mutable.Buffer[String](), "dct:contributor" -> mutable.Buffer[String](), "dct:title" -> mutable.Buffer[String]()))((x, y) => valueCollector(x, y)
+            //.mapValues(v => if(v.length == 1) v.head else v)(scala.collection.breakOut)
 
+        + ("@type" -> mutable.Buffer("http://bibframe.org/vocab/Work"),
+          "@context" -> mutable.Buffer("http://data.swissbib.ch/work/context.jsonld"),
+          "@id" -> mutable.Buffer("http://data.swissbib.ch/work/" + e._1))
+        ))
       )
       .saveToEsWithMeta(esIndexType(esTargetType))
   }
