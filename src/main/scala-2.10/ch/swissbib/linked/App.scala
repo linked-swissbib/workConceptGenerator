@@ -5,6 +5,7 @@ import org.elasticsearch.spark._
 import org.elasticsearch.spark.rdd.Metadata._
 
 import scala.collection.mutable
+import scala.collection.mutable.{Buffer => Bu}
 
 /**
   * @author Sebastian Schüpbach
@@ -22,7 +23,7 @@ object App {
     val esPort = "9200"
     implicit val esIndex = "testsb_160421"
     val esOriginType = "bibliographicResource"
-    val esTargetType = "work2"
+    val esTargetType = "work9"
     def esIndexType(t: String)(implicit i: String) = i + "/" + t
 
     val sparkConfig = new SparkConf()
@@ -33,24 +34,33 @@ object App {
       .set("es.port", esPort)
       .set("es.mapping.date.rich", "false")
 
-    val valueCollector = (agg: mutable.Map[String, mutable.Buffer[String]], elem: Map[String, AnyRef]) => {
+    val valueCollector = (agg: Map[String, AnyRef], elem: Map[String, AnyRef]) => {
+      //val rMap: mutable.Map[String, AnyRef] = mutable.Map("bf:hasInstance" -> "", "dct:contributor" -> "", "dct:title" -> "")
+      var rMap: mutable.Map[String, AnyRef] = mutable.Map()
       for (key <- elem.keys) {
-        elem(key) match {
-          case s: String => if (s != "") {
-            agg(key) ++= mutable.Buffer(s)
-            agg(key) = agg(key).distinct
-          }
-          case b: mutable.Buffer[String] =>
-            agg(key) ++= b.filter(_ != "")
-            agg(key) = agg(key).distinct
-          case _ => throw new Exception("Not supported!")
+        (agg.getOrElse(key, None), elem(key)) match {
+          // First element to add is a string
+          case (None, s: String) =>
+            rMap(key) = s
+          // Second element to add is a string, first one was a string
+          case (k: String, s: String) =>
+            rMap(key) = mutable.Buffer(k, s).distinct
+          // First element to add is an array
+          case (None, s: mutable.Buffer[String]) =>
+            rMap(key) = s.distinct
+          // Second element to add is an array, first one was a string
+          case (k: String, s: mutable.Buffer[String]) =>
+            rMap(key) = (s ++ mutable.Buffer(k)).distinct
+          // Append a string element
+          case (k: Bu[String], s: String) =>
+            rMap(key) = (mutable.Buffer(s) ++ k).distinct
+          // Append an array element
+          case (k: Bu[String], s: mutable.Buffer[String]) =>
+            rMap(key) = (k ++ s).distinct
+          case (k, s) => throw new Exception("Not supported!")
         }
       }
-      agg
-    }
-
-    val array2String: Tuple2[String, AnyRef] = (key: String, value: mutable.Buffer[String]) => {
-      Tuple2(key, if (value.length == 1) value.head else value)
+      rMap.toMap
     }
 
     new SparkContext(sparkConfig)
@@ -63,13 +73,10 @@ object App {
       ))
       .groupByKey()
       .map(e =>
-        Tuple2(Map(ID -> e._1), e._2.foldLeft(mutable.Map("bf:hasInstance" -> mutable.Buffer[String](), "dct:contributor" -> mutable.Buffer[String](), "dct:title" -> mutable.Buffer[String]()))((x, y) => valueCollector(x, y)
-            //.mapValues(v => if(v.length == 1) v.head else v)(scala.collection.breakOut)
-
-        + ("@type" -> mutable.Buffer("http://bibframe.org/vocab/Work"),
-          "@context" -> mutable.Buffer("http://data.swissbib.ch/work/context.jsonld"),
-          "@id" -> mutable.Buffer("http://data.swissbib.ch/work/" + e._1))
-        ))
+        Tuple2(Map(ID -> e._1), e._2.reduce(valueCollector)
+          + ("@type" -> "http://bibframe.org/vocab/Work",
+          "@context" -> "http://data.swissbib.ch/work/context.jsonld",
+          "@id" -> ("http://data.swissbib.ch/work/" + e._1.get)))
       )
       .saveToEsWithMeta(esIndexType(esTargetType))
   }
