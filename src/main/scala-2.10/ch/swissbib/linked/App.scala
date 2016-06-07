@@ -5,7 +5,6 @@ import org.elasticsearch.spark._
 import org.elasticsearch.spark.rdd.Metadata._
 
 import scala.collection.mutable
-import scala.collection.mutable.{Buffer => Bu}
 
 /**
   * @author Sebastian Schüpbach
@@ -33,10 +32,11 @@ object App {
       .set("es.nodes", esNodes)
       .set("es.port", esPort)
       .set("es.mapping.date.rich", "false")
+    val sparkContext = new SparkContext(sparkConfig)
 
     val valueCollector = (agg: Map[String, AnyRef], elem: Map[String, AnyRef]) => {
       //val rMap: mutable.Map[String, AnyRef] = mutable.Map("bf:hasInstance" -> "", "dct:contributor" -> "", "dct:title" -> "")
-      var rMap: mutable.Map[String, AnyRef] = mutable.Map()
+      val rMap: mutable.Map[String, AnyRef] = mutable.Map()
       for (key <- elem.keys) {
         (agg.getOrElse(key, None), elem(key)) match {
           // First element to add is a string
@@ -52,10 +52,10 @@ object App {
           case (k: String, s: mutable.Buffer[String]) =>
             rMap(key) = (s ++ mutable.Buffer(k)).distinct
           // Append a string element
-          case (k: Bu[String], s: String) =>
+          case (k: mutable.Buffer[String], s: String) =>
             rMap(key) = (mutable.Buffer(s) ++ k).distinct
           // Append an array element
-          case (k: Bu[String], s: mutable.Buffer[String]) =>
+          case (k: mutable.Buffer[String], s: mutable.Buffer[String]) =>
             rMap(key) = (k ++ s).distinct
           case (k, s) => throw new Exception("Not supported!")
         }
@@ -63,21 +63,27 @@ object App {
       rMap.toMap
     }
 
-    new SparkContext(sparkConfig)
+    sparkContext
+      // First step: Get all documents which contain a field work
       .esRDD(esIndexType(esOriginType), "?q=_exists_:work")
+      // Second step: Only take required values (i.e. the work id, the id and the title of the referring resource id and
+      // ids of contributors
       .map(x => Tuple2(x._2.get("work"),
-        Map("bf:hasInstance" -> ("http://data.swissbib.ch/bibliographicResource/" + x._1),
-          "dct:contributor" -> x._2.getOrElse("dct:contributor", ""),
-          "dct:title" -> x._2.getOrElse("dct:title", "")
-        )
-      ))
-      .groupByKey()
-      .map(e =>
-        Tuple2(Map(ID -> e._1), e._2.reduce(valueCollector)
-          + ("@type" -> "http://bibframe.org/vocab/Work",
-          "@context" -> "http://data.swissbib.ch/work/context.jsonld",
-          "@id" -> ("http://data.swissbib.ch/work/" + e._1.get)))
+      Map("bf:hasInstance" -> ("http://data.swissbib.ch/bibliographicResource/" + x._1),
+        "dct:contributor" -> x._2.getOrElse("dct:contributor", ""),
+        "dct:title" -> x._2.getOrElse("dct:title", "")
       )
+    ))
+      // Third step: Group tuples with same work id
+      .groupByKey()
+      // Forth step: Merge values with same work id to a new Tuple2 and add some static fields
+      .map(e =>
+      Tuple2(Map(ID -> e._1), e._2.reduce(valueCollector)
+        +("@type" -> "http://bibframe.org/vocab/Work",
+        "@context" -> "http://data.swissbib.ch/work/context.jsonld",
+        "@id" -> ("http://data.swissbib.ch/work/" + e._1.get)))
+    )
+      // Sixth step: Save the rearranged and merged tuples to Elasticsearch as documents of type work
       .saveToEsWithMeta(esIndexType(esTargetType))
   }
 }
