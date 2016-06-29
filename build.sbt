@@ -1,7 +1,8 @@
 lazy val commonSettings = Seq(
   organization := "ch.swissbib.linked",
   version := "0.1",
-  scalaVersion := "2.10.6"
+  //scalaVersion := "2.10.6"
+  scalaVersion := "2.11.8"
 )
 
 assemblyMergeStrategy in assembly := {
@@ -23,7 +24,7 @@ assemblyMergeStrategy in assembly := {
     oldStrategy(x)
 }
 
-lazy val sparkVersion = "1.6.1"
+lazy val sparkVersion = "1.6.2"
 
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
@@ -33,8 +34,11 @@ lazy val root = (project in file("."))
 
     resolvers += "clojars" at "https://clojars.org/repo",
     resolvers += "conjars" at "http://conjars.org/repo",
+    resolvers += Resolver.sonatypeRepo("public"),
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-core" % sparkVersion exclude ("org.scala-lang", "*"),
-      "org.elasticsearch" %% "elasticsearch-spark" % "2.3.0"
+      "org.apache.spark" %% "spark-core" % sparkVersion exclude("org.scala-lang", "*"),
+      "org.elasticsearch" %% "elasticsearch-spark" % "2.3.2",
+      "com.github.scopt" %% "scopt" % "3.5.0",
+      "org.scala-lang" % "scala-xml" % "2.11.0-M4"
     )
   )
