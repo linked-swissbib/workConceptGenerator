@@ -1,4 +1,4 @@
-package ch.swissbib.linked
+package org.swissbib.linked
 
 import org.apache.spark.{SparkConf, SparkContext}
 import org.elasticsearch.spark._

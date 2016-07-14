@@ -1,5 +1,5 @@
 lazy val commonSettings = Seq(
-  organization := "ch.swissbib.linked",
+  organization := "org.swissbib.linked",
   version := "0.9",
   scalaVersion := "2.11.8"
 )
