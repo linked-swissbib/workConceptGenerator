@@ -38,7 +38,7 @@ lazy val root = (project in file("."))
     resolvers += Resolver.sonatypeRepo("public"),
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % "2.0.1" exclude("org.scala-lang", "*"),
-      "org.elasticsearch" %% "elasticsearch-spark-1.2" % "2.4.0",
+      "org.elasticsearch" %% "elasticsearch-spark" % "2.4.0",
       "com.github.scopt" %% "scopt" % "3.5.0",
       "org.scala-lang.modules" %% "scala-xml" % "1.0.6"
     )
