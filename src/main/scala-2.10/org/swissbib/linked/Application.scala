@@ -106,6 +106,7 @@ object Application extends App {
         .set("es.nodes", conf.esHost.split(":")(0))
         .set("es.port", conf.esHost.split(":")(1))
         .set("es.mapping.date.rich", "false")
+        .set("spark.executor.memory", "12g")
       if (conf.sparkHome != "") sparkConfig.setSparkHome(conf.sparkHome)
 
       new SparkContext(sparkConfig)
