@@ -1,7 +1,7 @@
 lazy val commonSettings = Seq(
   organization := "org.swissbib.linked",
   version := "1.0",
-  scalaVersion := "2.11.8"
+  scalaVersion := "2.10.6"
 )
 
 assemblyMergeStrategy in assembly := {
@@ -32,14 +32,15 @@ lazy val root = (project in file("."))
 
     name := "workConceptGenerator",
     assemblyJarName := "workConceptGenerator.jar",
+    mainClass in assembly := Some("org.swissbib.linked.Application"),
 
     resolvers += "clojars" at "https://clojars.org/repo",
     resolvers += "conjars" at "http://conjars.org/repo",
     resolvers += Resolver.sonatypeRepo("public"),
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-core" % "2.0.1" exclude("org.scala-lang", "*"),
+      "org.apache.spark" %% "spark-core" % "1.6.2",
       "org.elasticsearch" %% "elasticsearch-spark" % "2.4.0",
-      "com.github.scopt" %% "scopt" % "3.5.0",
-      "org.scala-lang.modules" %% "scala-xml" % "1.0.6"
+      "com.github.scopt" %% "scopt" % "3.5.0"
+      // "org.scala-lang.modules" %% "scala-xml" % "1.0.6"
     )
   )
