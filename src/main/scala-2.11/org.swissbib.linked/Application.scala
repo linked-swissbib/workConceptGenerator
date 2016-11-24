@@ -47,17 +47,30 @@ object Application extends App {
       .text("Name of type which will contain generated concept")
   }
   val config = parser.parse(args, Config())
-  val esConstants = (id: AnyRef) => Map("@type" -> "http://bibframe.org/vocab/Work",
+
+  def esConstants(id: AnyRef) = Map("@type" -> "http://bibframe.org/vocab/Work",
     "@context" -> "http://data.swissbib.ch/work/context.jsonld",
     "@id" -> ("http://data.swissbib.ch/work/" + id))
 
-  def mapMerger(a: Map[String, AnyRef], b: Map[String, AnyRef]): Map[String, AnyRef] = {
+  def distinct[T](t: Traversable[T], a: Traversable[T] = Nil): Traversable[T] = {
+    def checkUniqueness(agg: Traversable[T], h: T, t: Traversable[T]): Traversable[T] = (h, t) match {
+      case (x, head :: tail) if x == head => checkUniqueness(agg, x, tail)
+      case (x, head :: tail) => checkUniqueness(Traversable(head) ++: agg, x, tail)
+      case (x, _) => agg
+    }
+    t match {
+      case head :: tail => distinct(checkUniqueness(Nil, head, tail), Traversable(head) ++: a)
+      case head => head ++: a
+    }
+  }
+
+  def mapMerger[T, U >: AnyRef](a: Map[T, U], b: Map[T, U]): Map[T, U] = {
     b.keys.foldLeft(a)((agg, k) => (agg.getOrElse(k, None), b(k)) match {
-      case (None, e2: AnyRef) => agg + (k -> e2)
-      case (e1: String, e2: String) => agg + (k -> Traversable(e1, e2))
-      case (e1: String, e2: Traversable[String]) => agg + (k -> (Traversable(e1) ++: e2))
-      case (e1: Traversable[String], e2: String) => agg + (k -> (Traversable(e2) ++: e1))
-      case (e1: Traversable[String], e2: Traversable[String]) => agg + (k -> (e1 ++: e2))
+      case (None, e2: U) => agg + (k -> e2)
+      case (e1: T, e2: T) => agg + (k -> distinct(Traversable(e1, e2)))
+      case (e1: T, e2: Traversable[T]) => agg + (k -> distinct(Traversable(e1) ++: e2))
+      case (e1: Traversable[T], e2: T) => agg + (k -> distinct(Traversable(e2) ++: e1))
+      case (e1: Traversable[T], e2: Traversable[T]) => agg + (k -> distinct(e1 ++: e2))
       case _ => throw new Error("Not supported!")
     })
   }
@@ -99,7 +112,7 @@ object Application extends App {
         // Third step: Group tuples with same work id
         .reduceByKey((acc, x) => mapMerger(acc, x))
         // Forth step: Merge values with same work id to a new Tuple2 and add some static fields
-        .map(e => Tuple2(Map(ID -> e._1), e._2 ++ esConstants(e._1.get)))
+        .map(e => (Map(ID -> e._1.get), e._2 ++ esConstants(e._1.get)))
         // Fifth step: Save the rearranged and merged tuples to Elasticsearch as documents of type work
         .saveToEsWithMeta(conf.getEsTargetType)
     //.saveAsTextFile("/swissbib_index/text")
