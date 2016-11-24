@@ -46,6 +46,10 @@ object Application extends App {
       .action((x, c) => c.copy(esTargetType = x))
       .text("Name of type which will contain generated concept")
   }
+  val config = parser.parse(args, Config())
+  val esConstants = (id: AnyRef) => Map("@type" -> "http://bibframe.org/vocab/Work",
+    "@context" -> "http://data.swissbib.ch/work/context.jsonld",
+    "@id" -> ("http://data.swissbib.ch/work/" + id))
 
   def mapMerger(a: Map[String, AnyRef], b: Map[String, AnyRef]): Map[String, AnyRef] = {
     b.keys.foldLeft(a)((agg, k) => (agg.getOrElse(k, None), b(k)) match {
@@ -57,11 +61,6 @@ object Application extends App {
       case _ => throw new Error("Not supported!")
     })
   }
-
-  val config = parser.parse(args, Config())
-  val esConstants = (id: AnyRef) => Map("@type" -> "http://bibframe.org/vocab/Work",
-    "@context" -> "http://data.swissbib.ch/work/context.jsonld",
-    "@id" -> ("http://data.swissbib.ch/work/" + id))
 
   case class Config(sparkMaster: String = "local[*]",
                     sparkHome: String = "",
@@ -98,9 +97,9 @@ object Application extends App {
         // ids of contributors
         .map(x => Tuple2(x._2.get("work"), conf.createWorkFieldsMap(x._1, x._2)))
         // Third step: Group tuples with same work id
-        .groupByKey()
+        .reduceByKey((acc, x) => mapMerger(acc, x))
         // Forth step: Merge values with same work id to a new Tuple2 and add some static fields
-        .map(e => Tuple2(Map(ID -> e._1), e._2.reduce(mapMerger) ++ esConstants(e._1.get)))
+        .map(e => Tuple2(Map(ID -> e._1), e._2 ++ esConstants(e._1.get)))
         // Fifth step: Save the rearranged and merged tuples to Elasticsearch as documents of type work
         .saveToEsWithMeta(conf.getEsTargetType)
     //.saveAsTextFile("/swissbib_index/text")
