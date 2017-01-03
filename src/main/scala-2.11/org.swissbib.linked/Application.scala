@@ -34,7 +34,7 @@ object Application extends App {
     "@id" -> ("http://data.swissbib.ch/work/" + id))
 
 
-  def mapMerger[T, U >: AnyRef](a: Map[T, U], b: Map[T, U]): Map[T, U] = {
+  def mapMerger[String, U >: AnyRef](a: Map[String, U], b: Map[String, U]): Map[String, U] = {
     def distinct[D](t: Traversable[D], a: Traversable[D] = Nil): Traversable[D] = {
       def checkUniqueness(agg: Traversable[D], h: D, t: Traversable[D]): Traversable[D] = (h, t) match {
         case (x, head :: tail) if x == head => checkUniqueness(agg, x, tail)
@@ -48,10 +48,10 @@ object Application extends App {
     }
     b.keys.foldLeft(a)((agg, k) => (agg.getOrElse(k, None), b(k)) match {
       case (None, e2: U) => agg + (k -> e2)
-      case (e1: T, e2: T) => agg + (k -> distinct(Traversable(e1, e2)))
-      case (e1: T, e2: Traversable[T]) => agg + (k -> distinct(Traversable(e1) ++: e2))
-      case (e1: Traversable[T], e2: T) => agg + (k -> distinct(Traversable(e2) ++: e1))
-      case (e1: Traversable[T], e2: Traversable[T]) => agg + (k -> distinct(e1 ++: e2))
+      case (e1: String, e2: String) => agg + (k -> distinct(Traversable(e1, e2)))
+      case (e1: String, e2: Traversable[String]) => agg + (k -> distinct(Traversable(e1) ++: e2))
+      case (e1: Traversable[String], e2: String) => agg + (k -> distinct(Traversable(e2) ++: e1))
+      case (e1: Traversable[String], e2: Traversable[String]) => agg + (k -> distinct(e1 ++: e2))
       case _ => throw new Error("Not supported!")
     })
   }
