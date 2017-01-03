@@ -33,19 +33,19 @@ object Application extends App {
     "@context" -> "http://data.swissbib.ch/work/context.jsonld",
     "@id" -> ("http://data.swissbib.ch/work/" + id))
 
-  def distinct[T](t: Traversable[T], a: Traversable[T] = Nil): Traversable[T] = {
-    def checkUniqueness(agg: Traversable[T], h: T, t: Traversable[T]): Traversable[T] = (h, t) match {
-      case (x, head :: tail) if x == head => checkUniqueness(agg, x, tail)
-      case (x, head :: tail) => checkUniqueness(Traversable(head) ++: agg, x, tail)
-      case (x, _) => agg
-    }
-    t match {
-      case head :: tail => distinct(checkUniqueness(Nil, head, tail), Traversable(head) ++: a)
-      case head => head ++: a
-    }
-  }
 
   def mapMerger[T, U >: AnyRef](a: Map[T, U], b: Map[T, U]): Map[T, U] = {
+    def distinct[D](t: Traversable[D], a: Traversable[D] = Nil): Traversable[D] = {
+      def checkUniqueness(agg: Traversable[D], h: D, t: Traversable[D]): Traversable[D] = (h, t) match {
+        case (x, head :: tail) if x == head => checkUniqueness(agg, x, tail)
+        case (x, head :: tail) => checkUniqueness(Traversable(head) ++: agg, x, tail)
+        case (x, _) => agg
+      }
+      t match {
+        case head :: tail => distinct(checkUniqueness(Nil, head, tail), Traversable(head) ++: a)
+        case head => head ++: a
+      }
+    }
     b.keys.foldLeft(a)((agg, k) => (agg.getOrElse(k, None), b(k)) match {
       case (None, e2: U) => agg + (k -> e2)
       case (e1: T, e2: T) => agg + (k -> distinct(Traversable(e1, e2)))
@@ -78,9 +78,9 @@ object Application extends App {
         // Second step: Only take required values (i.e. the work id, the id and the title of the referring resource id and
         // ids of contributors
         .map(x => Tuple2(x._2.get("work"), conf.createWorkFieldsMap(x._1, x._2)))
-        // Third step: Group tuples with same work id
+        // Third step: Group tuples with same work id and merge their values
         .reduceByKey((acc, x) => mapMerger(acc, x))
-        // Forth step: Merge values with same work id to a new Tuple2 and add some static fields
+        // Forth step: Add some static fields
         .map(e => (Map(ID -> e._1.get), e._2 ++ esConstants(e._1.get)))
         // Fifth step: Save the rearranged and merged tuples to Elasticsearch as documents of type work
         .saveToEsWithMeta(conf.getEsTargetType)
