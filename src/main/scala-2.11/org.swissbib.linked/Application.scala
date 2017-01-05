@@ -34,7 +34,7 @@ object Application extends App {
     "@id" -> ("http://data.swissbib.ch/work/" + id))
 
 
-  def mapMerger[String, U >: AnyRef](a: Map[String, U], b: Map[String, U]): Map[String, U] = {
+  def mapMerger[U >: AnyRef](a: Map[String, U], b: Map[String, U]): Map[String, U] = {
     def distinct[D](t: Traversable[D], a: Traversable[D] = Nil): Traversable[D] = {
       def checkUniqueness(agg: Traversable[D], h: D, t: Traversable[D]): Traversable[D] = (h, t) match {
         case (x, head :: tail) if x == head => checkUniqueness(agg, x, tail)
